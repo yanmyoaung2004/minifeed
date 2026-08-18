@@ -1,0 +1,15 @@
+# Node
+node_modules/
+dist/
+coverage/
+
+# Env
+.env
+.env.local
+
+# Vite
+*.local
+
+# IDE
+.idea/
+.vscode/
