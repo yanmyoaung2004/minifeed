@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = DEFAULT_SECRET
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     DATABASE_URL: str = "sqlite:///./app.db"
+    REDIS_URL: str = "redis://localhost:6379/0"
+    FEED_CACHE_TTL: int = 30
 
 
 settings = Settings()

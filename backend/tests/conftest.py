@@ -1,9 +1,12 @@
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.db.database import Base, get_db
 from app.main import app
 
@@ -31,8 +34,45 @@ def db_session():
     Base.metadata.drop_all(bind=engine)
 
 
+class _FakeCache:
+    def __init__(self):
+        self.data = None
+        self.ts = None
+
+    async def get_feed(self):
+        if self.data is None:
+            return None, False
+        fresh = (time.time() - self.ts) <= settings.FEED_CACHE_TTL
+        return self.data, fresh
+
+    async def set_feed(self, payload):
+        self.data = payload
+        self.ts = time.time()
+        return True
+
+    async def invalidate_feed(self):
+        self.data = None
+        self.ts = None
+        return True
+
+
+@pytest.fixture(autouse=True)
+def fake_cache(monkeypatch):
+    cache = _FakeCache()
+    monkeypatch.setattr("app.routers.posts.get_feed", cache.get_feed)
+    monkeypatch.setattr("app.routers.posts.set_feed", cache.set_feed)
+    monkeypatch.setattr("app.routers.posts.invalidate_feed", cache.invalidate_feed)
+    monkeypatch.setattr("app.main.set_feed", cache.set_feed)
+
+    async def _noop_warm():
+        return None
+
+    monkeypatch.setattr("app.main._warm_feed_cache", _noop_warm)
+    return cache
+
+
 @pytest.fixture()
-def client(db_session):
+def client(db_session, fake_cache):
     with TestClient(app) as test_client:
         yield test_client
 
