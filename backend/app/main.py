@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import DEFAULT_SECRET, settings
 from app.db import models  # noqa: F401  register tables on Base.metadata
 from app.db.database import Base, engine
-from app.routers import auth
+from app.routers import auth, posts
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -33,3 +33,4 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(posts.router)
