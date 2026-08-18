@@ -143,3 +143,18 @@ def test_warm_feed_cache_failure_is_silent(db_session, fake_cache, monkeypatch):
     monkeypatch.setattr("app.main.SessionLocal", boom)
     asyncio.run(_warm_feed_cache())
     assert fake_cache.data is None
+
+
+def test_cache_module_fails_open_when_redis_unreachable(monkeypatch):
+    import app.core.cache as cache_mod
+
+    def broken_client():
+        raise ConnectionError("redis unreachable")
+
+    monkeypatch.setattr(cache_mod, "_get_client", broken_client)
+
+    feed, fresh = asyncio.run(cache_mod.get_feed())
+    assert feed is None
+    assert fresh is False
+    assert asyncio.run(cache_mod.set_feed("[]")) is False
+    assert asyncio.run(cache_mod.invalidate_feed()) is False

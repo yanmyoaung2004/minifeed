@@ -12,7 +12,7 @@ from app.core.config import DEFAULT_SECRET, settings
 from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.db import models  # noqa: F401  register tables on Base.metadata
 from app.db.database import Base, SessionLocal, engine
-from app.routers import auth, posts
+from app.routers import auth, health, posts
 from app.routers.posts import load_posts, serialize_posts
 
 logger = logging.getLogger("uvicorn.error")
@@ -60,3 +60,4 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 app.include_router(auth.router)
 app.include_router(posts.router)
+app.include_router(health.router)

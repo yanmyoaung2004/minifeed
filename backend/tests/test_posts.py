@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from app.core.security import create_access_token
 from app.db.models import Post, User
 
 
@@ -19,6 +20,16 @@ def test_create_post_invalid_token(client):
         "/posts",
         json={"content": "hello"},
         headers={"Authorization": "Bearer not-a-real-token"},
+    )
+    assert resp.status_code == 401
+
+
+def test_create_post_expired_token(client, auth_headers):
+    expired = create_access_token(subject="1", expires_minutes=-1)
+    resp = client.post(
+        "/posts",
+        json={"content": "hello"},
+        headers={"Authorization": f"Bearer {expired}"},
     )
     assert resp.status_code == 401
 

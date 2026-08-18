@@ -1,3 +1,4 @@
+import hashlib
 import time
 
 import pytest
@@ -12,6 +13,22 @@ from app.db.database import Base, get_db
 from app.main import app
 
 
+class _FastHash:
+    """Test-time stand-in for argon2: same interface, near-instant. API behavior
+    (hashing happens, verification works, no plaintext stored) is preserved."""
+
+    def hash(self, password: str) -> str:
+        return "fast:" + hashlib.sha256(password.encode()).hexdigest()
+
+    def verify(self, password: str, hashed: str) -> bool:
+        return hashed == "fast:" + hashlib.sha256(password.encode()).hexdigest()
+
+
+@pytest.fixture(autouse=True)
+def fast_hash(monkeypatch):
+    monkeypatch.setattr("app.core.security.password_hash", _FastHash())
+
+
 @pytest.fixture(autouse=True)
 def reset_limiter():
     limiter.reset()
@@ -21,7 +38,7 @@ def reset_limiter():
 @pytest.fixture()
 def db_session():
     engine = create_engine(
-        "sqlite://",
+        "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
