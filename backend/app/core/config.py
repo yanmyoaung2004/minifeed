@@ -16,5 +16,19 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     FEED_CACHE_TTL: int = 30
 
+    GITHUB_CLIENT_ID: str | None = None
+    GITHUB_CLIENT_SECRET: str | None = None
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+    OAUTH_CALLBACK_BASE: str = "http://localhost:8000"
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    FIREBASE_API_KEY: str | None = None
+    FIREBASE_AUTH_DOMAIN: str | None = None
+    FIREBASE_PROJECT_ID: str | None = None
+    FIREBASE_STORAGE_BUCKET: str | None = None
+    FIREBASE_MESSAGING_SENDER_ID: str | None = None
+    FIREBASE_APP_ID: str | None = None
+
 
 settings = Settings()
