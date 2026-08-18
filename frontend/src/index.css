@@ -463,6 +463,10 @@ a:hover {
   resize: vertical;
 }
 
+.search-input {
+  min-height: 36px;
+}
+
 .character-count {
   font-variant-numeric: tabular-nums;
 }

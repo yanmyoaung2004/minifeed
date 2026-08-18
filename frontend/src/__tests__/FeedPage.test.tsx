@@ -155,4 +155,30 @@ describe('FeedPage', () => {
     ).toBeInTheDocument();
     expect(textarea.value).toBe('spam');
   });
+
+  it('refetches the feed with the search term (debounced)', async () => {
+    getPostsMock.mockResolvedValue({ posts: POSTS, cacheStatus: 'MISS' });
+    const user = userEvent.setup();
+    renderWithProviders(<FeedPage />);
+    await screen.findByText('second post');
+
+    await user.type(screen.getByPlaceholderText('Search posts…'), 'react');
+
+    await waitFor(() => {
+      expect(getPostsMock).toHaveBeenLastCalledWith('react');
+    });
+  });
+
+  it('shows a search-specific empty state when nothing matches', async () => {
+    getPostsMock
+      .mockResolvedValueOnce({ posts: POSTS, cacheStatus: 'MISS' })
+      .mockResolvedValue({ posts: [], cacheStatus: 'MISS' });
+    const user = userEvent.setup();
+    renderWithProviders(<FeedPage />);
+    await screen.findByText('second post');
+
+    await user.type(screen.getByPlaceholderText('Search posts…'), 'zzz');
+
+    expect(await screen.findByText('No posts match your search.')).toBeInTheDocument();
+  });
 });

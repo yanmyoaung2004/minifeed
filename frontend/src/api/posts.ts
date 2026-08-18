@@ -6,8 +6,9 @@ export interface PostsResponse {
   cacheStatus: string | null;
 }
 
-export async function getPosts(): Promise<PostsResponse> {
-  const response = await apiClient.get<Post[]>('/posts');
+export async function getPosts(search?: string): Promise<PostsResponse> {
+  const params = search && search.trim() ? { search: search.trim() } : {};
+  const response = await apiClient.get<Post[]>('/posts', { params });
   return {
     posts: response.data,
     cacheStatus: response.headers['x-cache'] ?? null,

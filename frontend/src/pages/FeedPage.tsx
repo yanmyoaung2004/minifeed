@@ -1,19 +1,38 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import type { Post } from '../api/types';
 import PostCard from '../components/PostCard';
 import PostComposer from '../components/PostComposer';
 import FeedSkeletons from '../components/FeedSkeletons';
-import { EmptyState, ErrorState, StaleBanner } from '../components/FeedStates';
+import { ErrorState, StaleBanner } from '../components/FeedStates';
 import { useAuth } from '../context/AuthContext';
 import { usePosts } from '../hooks/usePosts';
 
 export default function FeedPage() {
   const { user, logout } = useAuth();
-  const { posts, status, error, isStale, retry, addPostOptimistic } = usePosts();
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const { posts, status, error, isStale, retry, refresh, addPostOptimistic } =
+    usePosts(debouncedSearch);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const isSearching = debouncedSearch.length > 0;
 
   const focusComposer = () => {
     composerRef.current?.focus();
+  };
+
+  const handlePosted = (post: Post) => {
+    if (isSearching) {
+      refresh();
+    } else {
+      addPostOptimistic(post);
+    }
   };
 
   return (
@@ -41,14 +60,41 @@ export default function FeedPage() {
       <div className="feed-column">
         {isStale && <StaleBanner onRefresh={retry} />}
 
-        <PostComposer onPosted={addPostOptimistic} inputRef={composerRef} />
+        <label className="sr-only" htmlFor="feed-search">
+          Search posts
+        </label>
+        <input
+          id="feed-search"
+          className="input search-input"
+          type="search"
+          placeholder="Search posts…"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          autoComplete="off"
+        />
+
+        <PostComposer onPosted={handlePosted} inputRef={composerRef} />
 
         {status === 'loading' && <FeedSkeletons />}
 
         {status === 'error' && <ErrorState onRetry={retry} message={error} />}
 
         {status === 'ready' && posts.length === 0 && (
-          <EmptyState onCompose={focusComposer} />
+          <section className="empty-state">
+            <h2 className="empty-state-title">
+              {isSearching ? 'No posts match your search.' : 'No posts yet.'}
+            </h2>
+            <p className="empty-state-copy">
+              {isSearching
+                ? 'Try a different keyword.'
+                : 'Be the first to share!'}
+            </p>
+            {!isSearching && (
+              <button type="button" className="btn btn-primary" onClick={focusComposer}>
+                Write a post
+              </button>
+            )}
+          </section>
         )}
 
         {status === 'ready' && posts.length > 0 && (

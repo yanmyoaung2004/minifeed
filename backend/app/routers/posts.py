@@ -2,7 +2,7 @@ import json
 from hashlib import sha256
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 from starlette.concurrency import run_in_threadpool
@@ -20,12 +20,12 @@ FEED_CACHE_CONTROL = "public, max-age=30"
 WARNING_STALE = '110 - "Response is stale"'
 
 
-def load_posts(db: Session) -> list[Post]:
-    stmt = (
-        select(Post)
-        .options(joinedload(Post.author))
-        .order_by(Post.created_at.desc())
-    )
+def load_posts(db: Session, term: str | None = None) -> list[Post]:
+    stmt = select(Post).options(joinedload(Post.author))
+    if term:
+        escaped = term.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        stmt = stmt.where(Post.content.ilike(f"%{escaped}%", escape="\\"))
+    stmt = stmt.order_by(Post.created_at.desc())
     return list(db.scalars(stmt))
 
 
@@ -53,7 +53,18 @@ def _cache_headers(cache_status: str, etag: str, stale: bool = False) -> dict:
 async def list_posts(
     request: Request,
     db: Annotated[Session, Depends(get_db)],
+    search: str | None = Query(default=None, max_length=100),
 ) -> Response:
+    term = (search or "").strip()
+    if term:
+        posts = await run_in_threadpool(load_posts, db, term)
+        payload = serialize_posts(posts)
+        return Response(
+            content=payload,
+            media_type="application/json",
+            headers={"Cache-Control": FEED_CACHE_CONTROL},
+        )
+
     cached, fresh = await get_feed()
     if cached is not None and fresh:
         etag = feed_etag(cached)

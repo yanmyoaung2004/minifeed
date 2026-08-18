@@ -119,3 +119,71 @@ def test_login_flow_with_posts_end_to_end(client, make_user):
     feed = client.get("/posts")
     assert feed.json()[0]["content"] == "bob says hi"
     assert feed.json()[0]["author"]["username"] == "bob"
+
+
+def test_search_filters_posts_and_stays_newest_first(client, make_user, db_session):
+    make_user()
+    session = db_session()
+    user = session.get(User, 1)
+    base = datetime.now(timezone.utc)
+    for offset, content in enumerate(
+        ["I love React hooks", "fastapi is great", "React Router is neat", "plain post"]
+    ):
+        session.add(
+            Post(content=content, user_id=user.id, created_at=base + timedelta(minutes=offset))
+        )
+    session.commit()
+
+    resp = client.get("/posts", params={"search": "react"})
+    assert resp.status_code == 200
+    contents = [p["content"] for p in resp.json()]
+    assert contents == ["React Router is neat", "I love React hooks"]
+
+
+def test_search_is_case_insensitive(client, make_user):
+    client.post("/posts", json={"content": "Case Insensitive Match"}, headers=make_user())
+    resp = client.get("/posts", params={"search": "INSENSITIVE"})
+    assert resp.status_code == 200
+    assert [p["content"] for p in resp.json()] == ["Case Insensitive Match"]
+
+
+def test_search_no_results_returns_empty(client, make_user):
+    client.post("/posts", json={"content": "hello world"}, headers=make_user())
+    resp = client.get("/posts", params={"search": "nothing-matches"})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_search_blank_or_whitespace_returns_full_feed(client, make_user):
+    headers = make_user()
+    client.post("/posts", json={"content": "first"}, headers=headers)
+    client.post("/posts", json={"content": "second"}, headers=headers)
+    for params in [{"search": ""}, {"search": "   "}]:
+        resp = client.get("/posts", params=params)
+        assert resp.status_code == 200
+        assert len(resp.json()) == 2
+
+
+def test_search_escapes_wildcards(client, make_user):
+    headers = make_user()
+    client.post("/posts", json={"content": "100% pure"}, headers=headers)
+    client.post("/posts", json={"content": "plain text"}, headers=headers)
+    resp = client.get("/posts", params={"search": "%"})
+    assert resp.status_code == 200
+    assert [p["content"] for p in resp.json()] == ["100% pure"]
+
+
+def test_search_does_not_hit_feed_cache(client, make_user, fake_cache):
+    client.get("/posts")
+    assert fake_cache.data is not None
+    client.post("/posts", json={"content": "cached but searchable"}, headers=make_user())
+
+    resp = client.get("/posts", params={"search": "searchable"})
+    assert resp.status_code == 200
+    assert [p["content"] for p in resp.json()] == ["cached but searchable"]
+    assert resp.headers.get("X-Cache") is None
+
+
+def test_search_too_long_rejected(client):
+    resp = client.get("/posts", params={"search": "x" * 101})
+    assert resp.status_code == 422

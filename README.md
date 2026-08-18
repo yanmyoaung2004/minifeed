@@ -19,6 +19,7 @@ Repo: `https://github.com/yanmyoaung2004/minifeed` (private)
 ### Feed
 - **`GET /posts`** — public, newest first (`ORDER BY created_at DESC`), authors joined eagerly (no N+1).
 - **`POST /posts`** — Bearer-authenticated, content 1–500 chars (stripped, whitespace-only rejected), `409`-safe transaction with rollback.
+- **Search posts by keyword** — `GET /posts?search=<term>` filters content case-insensitively (wildcards `%`/`_` escaped), newest first; blank search returns the full feed; queries >100 chars are rejected with `422`. Search results bypass the feed cache (always fresh from the DB).
 - **Frontend feed resilience** — skeletons on first load, empty state ("No posts yet — be the first to share!"), error state with Retry, and a **stale-data banner**: if a refresh fails after posts have loaded, the last-known-good posts stay on screen with "Couldn't refresh — showing earlier posts."
 
 ### Performance & reliability
@@ -100,7 +101,7 @@ Repo: `https://github.com/yanmyoaung2004/minifeed` (private)
 │   │   ├── schemas/                # Pydantic v2 models (auth, post)
 │   │   ├── routers/                # auth, oauth, posts, health
 │   │   └── main.py                 # app factory, lifespan (schema retry + pre-warm)
-│   ├── tests/                      # pytest suite (71 tests)
+│   ├── tests/                      # pytest suite (78 tests)
 │   ├── Dockerfile                  # multi-stage, non-root, HEALTHCHECK
 │   ├── pyproject.toml / uv.lock    # uv-managed project
 │   └── requirements.txt            # pip fallback
@@ -111,7 +112,7 @@ Repo: `https://github.com/yanmyoaung2004/minifeed` (private)
 │   │   ├── context/                # AuthContext (token lifecycle + /auth/me)
 │   │   ├── hooks/                  # usePosts (stale-data retention)
 │   │   ├── pages/                  # AuthPage, FeedPage
-│   │   └── __tests__/              # Vitest + RTL (20 tests)
+│   │   └── __tests__/              # Vitest + RTL (22 tests)
 │   ├── Dockerfile                  # multi-stage node build → nginx
 │   └── nginx.conf                  # SPA + proxy + LB + rate limit + 10k cap
 ├── postman/                        # collection + environment
@@ -182,8 +183,8 @@ npm run dev
 ### Tests
 
 ```bash
-cd backend && uv run pytest          # 71 tests
-cd frontend && npm test              # 20 tests (Vitest + RTL)
+cd backend && uv run pytest          # 78 tests
+cd frontend && npm test              # 22 tests (Vitest + RTL)
 ```
 
 ---
@@ -251,7 +252,7 @@ Request: `{"identifier":"jane@example.com","password":"secret123"}` (identifier 
 Success → 302 `FRONTEND_URL?token=<jwt>`. Errors → 302 `FRONTEND_URL/login?error=denied|invalid`.
 
 ### `GET /posts`
-200 → array of `{"id":1,"content":"...","created_at":"2026-…+00:00","author":{"id":1,"username":"janedoe"}}`, **newest first**. Headers: `X-Cache: HIT|MISS|STALE`, `ETag`, `Cache-Control: public, max-age=30`, possibly `Warning: 110`. `304 Not Modified` when `If-None-Match` matches.
+200 → array of `{"id":1,"content":"...","created_at":"2026-…+00:00","author":{"id":1,"username":"janedoe"}}`, **newest first**. Optional query param `search=<term>` filters by keyword (case-insensitive; `%`/`_` escaped; ≤100 chars else 422). Headers: `X-Cache: HIT|MISS|STALE` (full feed only — searches bypass the cache), `ETag`, `Cache-Control: public, max-age=30`, possibly `Warning: 110`. `304 Not Modified` when `If-None-Match` matches.
 
 ### `POST /posts` — Bearer required
 Request: `{"content":"My first post!"}` (1–500 chars, stripped)
@@ -298,6 +299,8 @@ AuthPage "Continue with GitHub"
 **Write path:** successful `POST /posts` → `invalidate_feed()` deletes both keys → next read repopulates.
 
 **Conditional requests:** `ETag` = SHA-256 of the JSON body (quoted). `If-None-Match` is honored on every path (HIT, MISS-refresh, STALE) → `304` with empty body. `Cache-Control: public, max-age=30` mirrors the TTL.
+
+**Search:** `GET /posts?search=` bypasses the cache entirely (searches are ephemeral and would pollute the single feed key) and queries Postgres directly, newest first.
 
 **Resilience:** every Redis call is wrapped — on any error the cache is bypassed (logged, never crashes the request). The feed is pre-warmed at startup. Redis is a single shared store across both replicas, so HITs are consistent regardless of which backend serves.
 
@@ -361,15 +364,15 @@ AuthPage "Continue with GitHub"
 
 **Backend — pytest (71 tests, in-memory SQLite + fake Redis, no external services, ~3s)**
 - auth: signup success/duplicates/validation, login success (email + username), anti-enumeration, JWT `sub`/`exp`, case-variant username guard, `/auth/me`
-- posts: auth required (missing/invalid/expired token), content validation boundaries (1/500/501, whitespace), newest-first ordering, multi-author, end-to-end flow
+- posts: auth required (missing/invalid/expired token), content validation boundaries (1/500/501, whitespace), newest-first ordering, multi-author, end-to-end flow, **keyword search** (filtering + order, case-insensitivity, no-results, blank/whitespace, wildcard escaping, cache bypass, >100-char rejection)
 - cache: HIT/MISS/STALE headers, ETag `304` on all paths, invalidation on POST, DB-failure stale serve, total-outage `503`, Redis-unreachable fail-open, pre-warm
 - rate limit: per-IP signup/login 429 + `Retry-After`, per-user post isolation, key-function fallbacks
 - health: 200 healthy / 503 degraded per dependency
 - oauth: state sign/verify, tampered/expired/provider-mismatch rejection, user creation (NULL password), account merge, username dedupe, cancellation/exchange-failure redirects, NULL-password login rejection
 
-**Frontend — Vitest + RTL (20 tests, jsdom)**
+**Frontend — Vitest + RTL (22 tests, jsdom)**
 - AuthPage: tabs, inline validation, 401 banner, submitting state, 409 inline, network banner, token persistence
-- FeedPage: skeletons→posts, empty, error+Retry, stale banner retaining posts, composer validation/clear/429
+- FeedPage: skeletons→posts, empty, error+Retry, stale banner retaining posts, composer validation/clear/429, **debounced search refetch + search-specific empty state**
 - ProtectedRoute: redirect, allow, loading
 - OAuth callback: `?token=` bridge (store + URL strip + authenticate), error banners
 
