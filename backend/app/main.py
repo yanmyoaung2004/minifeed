@@ -1,4 +1,5 @@
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -16,6 +17,20 @@ from app.routers import auth, health, oauth, posts
 from app.routers.posts import load_posts, serialize_posts
 
 logger = logging.getLogger("uvicorn.error")
+
+
+def _init_schema_with_retry(retries: int = 10, delay: float = 2.0) -> None:
+    for attempt in range(retries):
+        try:
+            Base.metadata.create_all(bind=engine)
+            return
+        except Exception:
+            if attempt == retries - 1:
+                raise
+            logger.warning(
+                "Database not ready (attempt %s/%s); retrying", attempt + 1, retries
+            )
+            time.sleep(delay)
 
 
 async def _warm_feed_cache() -> None:
@@ -39,7 +54,7 @@ async def lifespan(_: FastAPI):
         logger.warning(
             "SECRET_KEY is the insecure default. Set it in .env for anything beyond local development."
         )
-    Base.metadata.create_all(bind=engine)
+    _init_schema_with_retry()
     await _warm_feed_cache()
     yield
 

@@ -32,8 +32,12 @@ async def _check_cache() -> bool:
 async def health() -> JSONResponse:
     db_ok = _check_db()
     cache_ok = await _check_cache()
-    ok = db_ok
+    ok = db_ok and cache_ok
     return JSONResponse(
         status_code=200 if ok else 503,
-        content={"status": "ok" if ok else "degraded", "checks": {"db": db_ok, "cache": cache_ok}},
+        content={
+            "status": "healthy" if ok else "degraded",
+            "database": "ok" if db_ok else "error",
+            "cache": "ok" if cache_ok else "error",
+        },
     )

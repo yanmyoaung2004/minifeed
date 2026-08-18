@@ -1,0 +1,57 @@
+name: minifeed
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-minifeed}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-minifeed}
+      POSTGRES_DB: ${POSTGRES_DB:-minifeed}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-minifeed} -d ${POSTGRES_DB:-minifeed}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build: ./backend
+    scale: 2
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-4f8a2c9d1b6e3f7a0c5d8e2b9a4f6c1d3e}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-minifeed}:${POSTGRES_PASSWORD:-minifeed}@postgres:5432/${POSTGRES_DB:-minifeed}
+      REDIS_URL: redis://redis:6379/0
+      FEED_CACHE_TTL: ${FEED_CACHE_TTL:-30}
+      OAUTH_CALLBACK_BASE: http://localhost:80
+      FRONTEND_URL: http://localhost:80
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:

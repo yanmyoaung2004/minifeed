@@ -6,9 +6,7 @@ def test_health_ok_when_db_and_cache_up(client, monkeypatch):
 
     resp = client.get("/health")
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["status"] == "ok"
-    assert body["checks"] == {"db": True, "cache": True}
+    assert resp.json() == {"status": "healthy", "database": "ok", "cache": "ok"}
 
 
 def test_health_degraded_when_db_down(client, monkeypatch):
@@ -23,17 +21,30 @@ def test_health_degraded_when_db_down(client, monkeypatch):
 
     resp = client.get("/health")
     assert resp.status_code == 503
-    body = resp.json()
-    assert body["status"] == "degraded"
-    assert body["checks"] == {"db": False, "cache": True}
+    assert resp.json() == {"status": "degraded", "database": "error", "cache": "ok"}
 
 
-def test_health_ok_with_cache_down(client, monkeypatch):
+def test_health_degraded_when_cache_down(client, monkeypatch):
     async def _cache_down() -> bool:
         return False
 
     monkeypatch.setattr("app.routers.health._check_cache", _cache_down)
 
     resp = client.get("/health")
-    assert resp.status_code == 200
-    assert resp.json()["checks"]["cache"] is False
+    assert resp.status_code == 503
+    assert resp.json() == {"status": "degraded", "database": "ok", "cache": "error"}
+
+
+def test_health_degraded_when_both_down(client, monkeypatch):
+    async def _cache_down() -> bool:
+        return False
+
+    def _db_down() -> bool:
+        return False
+
+    monkeypatch.setattr("app.routers.health._check_cache", _cache_down)
+    monkeypatch.setattr("app.routers.health._check_db", _db_down)
+
+    resp = client.get("/health")
+    assert resp.status_code == 503
+    assert resp.json() == {"status": "degraded", "database": "error", "cache": "error"}
