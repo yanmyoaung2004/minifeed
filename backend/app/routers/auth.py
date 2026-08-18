@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.database import get_db
 from app.db.models import User
@@ -14,7 +15,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/signup", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def signup(payload: UserCreate, db: Annotated[Session, Depends(get_db)]) -> User:
+@limiter.limit("5/minute")
+def signup(
+    request: Request,
+    payload: UserCreate,
+    db: Annotated[Session, Depends(get_db)],
+) -> User:
     existing = db.execute(
         select(User).where(
             or_(
@@ -46,7 +52,12 @@ def signup(payload: UserCreate, db: Annotated[Session, Depends(get_db)]) -> User
 
 
 @router.post("/login", response_model=Token)
-def login(payload: LoginRequest, db: Annotated[Session, Depends(get_db)]) -> Token:
+@limiter.limit("5/minute")
+def login(
+    request: Request,
+    payload: LoginRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> Token:
     identifier = payload.identifier.strip().lower()
     user = db.execute(
         select(User)

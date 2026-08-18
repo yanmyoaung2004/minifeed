@@ -3,10 +3,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.concurrency import run_in_threadpool
 
 from app.core.cache import set_feed
 from app.core.config import DEFAULT_SECRET, settings
+from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.db import models  # noqa: F401  register tables on Base.metadata
 from app.db.database import Base, SessionLocal, engine
 from app.routers import auth, posts
@@ -50,6 +53,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SlowAPIMiddleware)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 app.include_router(auth.router)
 app.include_router(posts.router)

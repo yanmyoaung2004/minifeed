@@ -9,6 +9,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.cache import get_feed, invalidate_feed, set_feed
 from app.core.dependencies import get_current_user
+from app.core.rate_limit import limiter, user_id_key
 from app.db.database import get_db
 from app.db.models import Post, User
 from app.schemas.post import PostCreate, PostOut
@@ -85,7 +86,9 @@ async def list_posts(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=PostOut)
+@limiter.limit("10/minute", key_func=user_id_key)
 async def create_post(
+    request: Request,
     payload: PostCreate,
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
