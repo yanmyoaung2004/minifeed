@@ -134,22 +134,23 @@ async def exchange_code(provider: str, code: str) -> dict:
 async def fetch_userinfo(provider: str, access_token: str) -> dict:
     client = get_client(provider)
     meta = PROVIDER_META[provider]
-    resp = await client.request("GET", meta["userinfo_url"], token=access_token)
+    token = {"access_token": access_token}
+    resp = await client.request("GET", meta["userinfo_url"], token=token)
     resp.raise_for_status()
     data = resp.json()
     if provider == "github" and not data.get("email"):
-        emails = await _fetch_github_emails(client, access_token)
+        emails = await _fetch_github_emails(client, token)
         if emails:
             primary = next((e for e in emails if e.get("primary")), emails[0])
             data["email"] = primary.get("email")
     return data
 
 
-async def _fetch_github_emails(client, access_token: str) -> list[dict]:
+async def _fetch_github_emails(client, token: dict) -> list[dict]:
     resp = await client.request(
         "GET",
         PROVIDER_META["github"]["emails_url"],
-        token=access_token,
+        token=token,
     )
     resp.raise_for_status()
     return resp.json()

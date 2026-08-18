@@ -40,7 +40,12 @@ def _token_from_redirect(location: str) -> str:
     return parse_qs(urlparse(location).query)["token"][0]
 
 
-def test_providers_empty_when_unconfigured(client):
+def test_providers_empty_when_unconfigured(client, monkeypatch):
+    monkeypatch.setattr(settings, "GITHUB_CLIENT_ID", None)
+    monkeypatch.setattr(settings, "GITHUB_CLIENT_SECRET", None)
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", None)
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", None)
+    monkeypatch.setattr("app.core.oauth._registered", set())
     resp = client.get("/auth/oauth/providers")
     assert resp.status_code == 200
     assert resp.json() == {"providers": []}
@@ -63,7 +68,12 @@ def test_authorize_redirects_with_signed_state(client, oauth_creds):
     assert verify_state(state, "github") is True
 
 
-def test_authorize_unconfigured_provider_redirects(client):
+def test_authorize_unconfigured_provider_redirects(client, monkeypatch):
+    monkeypatch.setattr(settings, "GITHUB_CLIENT_ID", None)
+    monkeypatch.setattr(settings, "GITHUB_CLIENT_SECRET", None)
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", None)
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", None)
+    monkeypatch.setattr("app.core.oauth._registered", set())
     resp = client.get("/auth/oauth/github", follow_redirects=False)
     assert resp.status_code == 302
     assert "error=not_configured" in resp.headers["location"]
