@@ -3,6 +3,9 @@ node_modules/
 dist/
 coverage/
 
+# TypeScript build info
+*.tsbuildinfo
+
 # Env
 .env
 .env.local
