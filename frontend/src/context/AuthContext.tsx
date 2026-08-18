@@ -24,25 +24,27 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(() =>
-    localStorage.getItem(TOKEN_STORAGE_KEY),
-  );
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauthToken = params.get('token');
+  const [token, setToken] = useState<string | null>(() => {
+    const oauthToken = new URLSearchParams(window.location.search).get('token');
     if (oauthToken) {
       localStorage.setItem(TOKEN_STORAGE_KEY, oauthToken);
-      setToken(oauthToken);
+      return oauthToken;
+    }
+    return localStorage.getItem(TOKEN_STORAGE_KEY);
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    if (token && window.location.search.includes('token=')) {
+      const params = new URLSearchParams(window.location.search);
       params.delete('token');
       const query = params.toString();
       const cleanUrl = window.location.pathname + (query ? `?${query}` : '');
       window.history.replaceState({}, document.title, cleanUrl);
     }
     setIsLoading(false);
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (!token) {
