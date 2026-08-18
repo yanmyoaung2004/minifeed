@@ -1,33 +1,63 @@
+import { useRef } from 'react';
+
+import PostCard from '../components/PostCard';
+import PostComposer from '../components/PostComposer';
+import FeedSkeletons from '../components/FeedSkeletons';
+import { EmptyState, ErrorState, StaleBanner } from '../components/FeedStates';
+import { useAuth } from '../context/AuthContext';
+import { usePosts } from '../hooks/usePosts';
+
 export default function FeedPage() {
+  const { user, logout } = useAuth();
+  const { posts, status, error, isStale, retry, addPostOptimistic } = usePosts();
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const focusComposer = () => {
+    composerRef.current?.focus();
+  };
+
   return (
     <div className="feed-shell">
       <header className="topbar">
         <h1 className="logotype">
           Mini<span className="logotype-accent">Feed</span>
         </h1>
-        <span className="auth-tagline">Feed UI lands in the next phase.</span>
+        <div className="topbar-user">
+          {user && <span className="user-badge">{user.username}</span>}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            aria-label="Refresh feed"
+            onClick={retry}
+          >
+            Refresh
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>
+            Log out
+          </button>
+        </div>
       </header>
 
       <div className="feed-column">
-        <section className="composer" aria-label="New post">
-          <textarea
-            className="input"
-            placeholder="What's on your mind?"
-            maxLength={500}
-            disabled
-          />
-          <div className="composer-footer">
-            <span className="character-count">0/500</span>
-            <button className="btn btn-primary" type="button" disabled>
-              Post
-            </button>
-          </div>
-        </section>
+        {isStale && <StaleBanner onRefresh={retry} />}
 
-        <section className="empty-state">
-          <h2 className="empty-state-title">No posts yet.</h2>
-          <p className="empty-state-copy">Be the first to post.</p>
-        </section>
+        <PostComposer onPosted={addPostOptimistic} inputRef={composerRef} />
+
+        {status === 'loading' && <FeedSkeletons />}
+
+        {status === 'error' && <ErrorState onRetry={retry} message={error} />}
+
+        {status === 'ready' && posts.length === 0 && (
+          <EmptyState onCompose={focusComposer} />
+        )}
+
+        {status === 'ready' && posts.length > 0 && (
+          <div className="post-list">
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

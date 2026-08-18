@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 MAX_POST_LENGTH = 500
 
@@ -30,3 +30,9 @@ class PostOut(BaseModel):
     content: str
     created_at: datetime
     author: PostAuthor
+
+    @field_serializer("created_at")
+    def _serialize_created_at(self, value: datetime) -> str:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.isoformat()

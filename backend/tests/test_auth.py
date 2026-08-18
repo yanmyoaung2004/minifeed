@@ -136,3 +136,17 @@ def test_login_no_user_enumeration(client):
 def test_login_malformed_body(client):
     resp = client.post("/auth/login", json={"identifier": ""})
     assert resp.status_code == 422
+
+
+def test_me_requires_auth(client):
+    resp = client.get("/auth/me")
+    assert resp.status_code == 401
+
+
+def test_me_returns_current_user(client, auth_headers):
+    resp = client.get("/auth/me", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["username"] == "yan"
+    assert body["email"] == "yan@example.com"
+    assert "hashed_password" not in body

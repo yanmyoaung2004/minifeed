@@ -5,6 +5,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.dependencies import get_current_user
 from app.core.rate_limit import limiter
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.database import get_db
@@ -70,3 +71,8 @@ def login(
             detail="Invalid credentials",
         )
     return Token(access_token=create_access_token(subject=str(user.id)))
+
+
+@router.get("/me", response_model=UserOut)
+def me(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    return current_user

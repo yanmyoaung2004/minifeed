@@ -11,6 +11,11 @@ export async function login(data: LoginRequest): Promise<TokenResponse> {
   return token;
 }
 
+export async function getMe(): Promise<User> {
+  const { data } = await apiClient.get<User>('/auth/me');
+  return data;
+}
+
 export async function getOAuthProviders(): Promise<OAuthProviders> {
   const { data } = await apiClient.get<OAuthProviders>('/auth/oauth/providers');
   return data;

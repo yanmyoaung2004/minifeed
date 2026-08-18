@@ -10,11 +10,12 @@ import {
 
 import * as authApi from '../api/auth';
 import { TOKEN_STORAGE_KEY } from '../api/client';
-import type { LoginRequest, UserCreate } from '../api/types';
+import type { LoginRequest, User, UserCreate } from '../api/types';
 
 interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
+  user: User | null;
   login: (data: LoginRequest) => Promise<void>;
   signup: (data: UserCreate) => Promise<void>;
   logout: () => void;
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() =>
     localStorage.getItem(TOKEN_STORAGE_KEY),
   );
@@ -41,6 +43,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    if (!token) {
+      setUser(null);
+      return;
+    }
+    let cancelled = false;
+    authApi
+      .getMe()
+      .then((me) => {
+        if (!cancelled) setUser(me);
+      })
+      .catch(() => {
+        if (!cancelled) setUser(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const persistToken = useCallback((next: string) => {
     localStorage.setItem(TOKEN_STORAGE_KEY, next);
@@ -73,8 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ isAuthenticated: token !== null, isLoading, login, signup, logout }),
-    [token, isLoading, login, signup, logout],
+    () => ({ isAuthenticated: token !== null, isLoading, user, login, signup, logout }),
+    [token, isLoading, user, login, signup, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
