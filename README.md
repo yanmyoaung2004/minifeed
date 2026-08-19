@@ -323,6 +323,8 @@ MiniFeed uses JWT-based authentication.
 4. The frontend stores the access token and sends it using the `Authorization: Bearer` header.
 5. Protected endpoints validate the token and identify the current user.
 
+The frontend keeps the access token in `localStorage` — fine for this take-home, though an httpOnly cookie would be more resistant to XSS in production.
+
 GitHub and Google OAuth are available as optional authentication methods.
 
 ---
