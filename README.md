@@ -352,7 +352,7 @@ cd backend
 pytest
 ```
 
-78 tests covering authentication, authorization, post creation, validation, keyword search, rate limiting, caching, and failure cases.
+79 tests covering authentication, authorization, post creation, validation, keyword search, rate limiting, caching, global error handling, and failure cases.
 
 ### Frontend
 
